@@ -108,6 +108,7 @@ export default function App() {
   const [mstStep, setMstStep] = useState(0);
   const [sliderVal, setSliderVal] = useState(65);
   const [showAbout, setShowAbout] = useState(false);
+  const [lossFunction, setLossFunction] = useState('occlusion-recall');
 
   // Ref for Leaflet Map
   const mapRef = useRef(null);
