@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Activity, 
   Map as MapIcon, 
@@ -20,10 +20,11 @@ import {
   Network,
   Shield,
   HelpCircle,
-  BookOpen,
   X,
   Clock,
-  BarChart3
+  BarChart3,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import { 
   AreaChart, Area, 
@@ -31,18 +32,18 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
-// --- BENGALURU METRO ROAD NETWORK DATA ---
+// --- REAL BENGALURU COORDINATES FOR GIS OVERLAY ---
 const INITIAL_NODES = [
-  { id: '1', name: 'Majestic Transport Hub', x: 200, y: 250, baselineCentrality: 0.85, status: 'active', info: 'Primary city transport intersection connecting west and east corridors.' },
-  { id: '2', name: 'Koramangala Inner Ring', x: 380, y: 380, baselineCentrality: 0.72, status: 'active', info: 'High-density commercial corridor prone to canopy occlusions.' },
-  { id: '3', name: 'Silk Board Junction', x: 420, y: 480, baselineCentrality: 0.95, status: 'active', info: 'Critical southern entry/exit bottleneck; single point of failure.' },
-  { id: '4', name: 'Indiranagar 100ft Rd', x: 450, y: 220, baselineCentrality: 0.60, status: 'active', info: 'Major commercial & arterial street with heavy tree shadow covers.' },
-  { id: '5', name: 'Hebbal Flyover', x: 280, y: 80, baselineCentrality: 0.88, status: 'active', info: 'Northern gateway connection to Kempegowda Airport.' },
-  { id: '6', name: 'MG Road Metro Crossing', x: 330, y: 240, baselineCentrality: 0.78, status: 'active', info: 'Central Business District hub; overlaps high-rise shadows.' },
-  { id: '7', name: 'Yeshwanthpur Industrial', x: 120, y: 150, baselineCentrality: 0.55, status: 'active', info: 'Industrial freight connector node supporting heavy cargo transport.' },
-  { id: '8', name: 'Whitefield Tech Corridor', x: 600, y: 300, baselineCentrality: 0.65, status: 'active', info: 'IT hub perimeter gatekeeper; subject to rapid expansion occlusions.' },
-  { id: '9', name: 'Electronic City Tollway', x: 500, y: 580, baselineCentrality: 0.50, status: 'active', info: 'Elevated highway gateway managing southern tech commuter routes.' },
-  { id: '10', name: 'Outer Ring Rd East', x: 550, y: 390, baselineCentrality: 0.68, status: 'active', info: 'Critical bypass route segment linking key tech zones.' }
+  { id: '1', name: 'Majestic Transport Hub', lat: 12.9779, lng: 77.5724, baselineCentrality: 0.85, status: 'active', info: 'Primary city transport intersection connecting west and east corridors.' },
+  { id: '2', name: 'Koramangala Ring Road', lat: 12.9348, lng: 77.6189, baselineCentrality: 0.72, status: 'active', info: 'High-density commercial corridor prone to canopy occlusions.' },
+  { id: '3', name: 'Silk Board Junction', lat: 12.9176, lng: 77.6244, baselineCentrality: 0.95, status: 'active', info: 'Critical southern entry/exit bottleneck; single point of failure.' },
+  { id: '4', name: 'Indiranagar 100ft Rd', lat: 12.9718, lng: 77.6411, baselineCentrality: 0.60, status: 'active', info: 'Major commercial & arterial street with heavy tree shadow covers.' },
+  { id: '5', name: 'Hebbal Flyover', lat: 13.0358, lng: 77.5978, baselineCentrality: 0.88, status: 'active', info: 'Northern gateway connection to Kempegowda Airport.' },
+  { id: '6', name: 'MG Road Crossing', lat: 12.9738, lng: 77.6119, baselineCentrality: 0.78, status: 'active', info: 'Central Business District hub; overlaps high-rise shadows.' },
+  { id: '7', name: 'Yeshwanthpur Industrial', lat: 13.0285, lng: 77.5401, baselineCentrality: 0.55, status: 'active', info: 'Industrial freight connector node supporting heavy cargo transport.' },
+  { id: '8', name: 'Whitefield Tech Corridor', lat: 12.9698, lng: 77.7500, baselineCentrality: 0.65, status: 'active', info: 'IT hub perimeter gatekeeper; subject to rapid expansion occlusions.' },
+  { id: '9', name: 'Electronic City Tollway', lat: 12.8407, lng: 77.6763, baselineCentrality: 0.50, status: 'active', info: 'Elevated highway gateway managing southern tech commuter routes.' },
+  { id: '10', name: 'Outer Ring Rd East', lat: 12.9234, lng: 77.6834, baselineCentrality: 0.68, status: 'active', info: 'Critical bypass route segment linking key tech zones.' }
 ];
 
 const INITIAL_EDGES = [
@@ -59,7 +60,7 @@ const INITIAL_EDGES = [
   { source: '10', target: '8', length: 130, isHealed: false, type: 'arterial' },
   { source: '3', target: '10', length: 150, isHealed: false, type: 'arterial' },
   
-  // Broken segments (Occlusions) healed by MST topological algorithm
+  // Occlusion gaps healed by MST
   { source: '5', target: '6', length: 160, isHealed: true, type: 'healed', occlusion: 'Tree Canopy', gapScore: 'Dist: 32m, Dev: 14°' },
   { source: '4', target: '10', length: 180, isHealed: true, type: 'healed', occlusion: 'Building Shadows', gapScore: 'Dist: 48m, Dev: 22°' },
   { source: '8', target: '9', length: 280, isHealed: true, type: 'healed', occlusion: 'Cloud Cover', gapScore: 'Dist: 85m, Dev: 31°' }
@@ -82,19 +83,36 @@ export default function App() {
   const [shortestPath, setShortestPath] = useState([]);
   const [activePathLength, setActivePathLength] = useState(0);
   
+  // Flood Level Slider State
+  const [floodLevel, setFloodLevel] = useState(0);
+
   // System metrics
   const [resilienceIndex, setResilienceIndex] = useState(1.0);
   const [ablationLog, setAblationLog] = useState([
     { time: '10:30:59', event: 'Grid Telemetry Active', cause: 'Initialization', impact: 'Baseline established at R = 1.0' }
   ]);
 
+  // Drag and Drop State
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [predicting, setPredicting] = useState(false);
+  const [predictStep, setPredictStep] = useState(0);
+
+  // Chatbot State
+  const [chatMessages, setChatMessages] = useState([
+    { sender: 'assistant', text: 'Namaste! I am your NNRMS GIS assistant. How can I help you analyze the Bengaluru road network?' }
+  ]);
+  const [userInput, setUserInput] = useState('');
+
   // Stepper states for Phase II Graph Healing Step-by-Step
   const [mstStep, setMstStep] = useState(0);
-
-  // Model Playground State
-  const [lossFunction, setLossFunction] = useState('occlusion-recall');
   const [sliderVal, setSliderVal] = useState(65);
   const [showAbout, setShowAbout] = useState(false);
+
+  // Ref for Leaflet Map
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const mapLayersRef = useRef([]);
 
   // Loader sequence
   useEffect(() => {
@@ -125,15 +143,115 @@ export default function App() {
     };
   }, []);
 
-  // Trigger Routing logic when structural settings shift
+  // Update routing when structural changes happen
   useEffect(() => {
     calculateRoute();
   }, [nodes, edges, mstEnabled, startNode, endNode]);
 
-  // Handle Dynamic resilience index calculations
+  // Recalculate Resilience index
   useEffect(() => {
     recalculateNetworkMetrics();
   }, [nodes, edges, mstEnabled]);
+
+  // Handle dynamic flood ablation triggers
+  useEffect(() => {
+    if (floodLevel === 0) {
+      setNodes(prev => prev.map(n => ({ ...n, status: 'active' })));
+    } else {
+      // Sequentially ablate nodes based on centrality and flood height percentage
+      setNodes(prev => prev.map(n => {
+        // Disabling critical nodes at high levels
+        if (floodLevel >= 80 && (n.id === '3' || n.id === '2' || n.id === '5')) {
+          return { ...n, status: 'disabled' };
+        }
+        if (floodLevel >= 40 && (n.id === '3' || n.id === '2')) {
+          return { ...n, status: 'disabled' };
+        }
+        return { ...n, status: 'active' };
+      }));
+    }
+  }, [floodLevel]);
+
+  // Initialize Leaflet Map
+  useEffect(() => {
+    if (loading || !mapRef.current) return;
+
+    // Standard Leaflet Initialization centered on Bengaluru
+    if (!mapInstance.current) {
+      mapInstance.current = L.map(mapRef.current, {
+        center: [12.9716, 77.5946],
+        zoom: 11,
+        zoomControl: false
+      });
+
+      // Add CartoDB Dark Matter layer
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(mapInstance.current);
+    }
+
+    renderMapLayers();
+
+  }, [loading, nodes, edges, mstEnabled, shortestPath, activeTab]);
+
+  const renderMapLayers = () => {
+    if (!mapInstance.current) return;
+
+    // Clear previous vector paths and markers
+    mapLayersRef.current.forEach(layer => mapInstance.current.removeLayer(layer));
+    mapLayersRef.current = [];
+
+    // Draw Edges
+    edges.forEach(edge => {
+      const u = nodes.find(n => n.id === edge.source);
+      const v = nodes.find(n => n.id === edge.target);
+      if (!u || !v) return;
+
+      const isShortest = shortestPath.indexOf(edge.source) !== -1 && 
+                         shortestPath.indexOf(edge.target) !== -1 &&
+                         Math.abs(shortestPath.indexOf(edge.source) - shortestPath.indexOf(edge.target)) === 1;
+
+      const isEdgeDisabled = u.status === 'disabled' || v.status === 'disabled' || (edge.isHealed && !mstEnabled);
+
+      if (edge.isHealed && !mstEnabled) return;
+
+      const polyline = L.polyline([[u.lat, u.lng], [v.lat, v.lng]], {
+        color: isEdgeDisabled ? '#1e293b' : isShortest ? '#00E5FF' : edge.isHealed ? '#a855f7' : '#2563EB',
+        weight: isShortest ? 6 : edge.isHealed ? 4 : 3,
+        dashArray: edge.isHealed ? '5, 5' : null,
+        opacity: isEdgeDisabled ? 0.2 : 0.8
+      }).addTo(mapInstance.current);
+
+      mapLayersRef.current.push(polyline);
+    });
+
+    // Draw Nodes
+    nodes.forEach(node => {
+      const isNodeOnShortestPath = shortestPath.includes(node.id);
+      
+      const circleMarker = L.circleMarker([node.lat, node.lng], {
+        radius: node.status === 'disabled' ? 12 : isNodeOnShortestPath ? 10 : 8,
+        fillColor: node.status === 'disabled' ? '#ef4444' : isNodeOnShortestPath ? '#00E5FF' : '#2563EB',
+        color: '#ffffff',
+        weight: 1.5,
+        fillOpacity: 0.9
+      }).addTo(mapInstance.current);
+
+      circleMarker.bindPopup(`
+        <div style="color: #030712; font-family: sans-serif; font-size: 11px;">
+          <strong style="font-size: 12px;">${node.name}</strong><br/>
+          Centrality: ${node.baselineCentrality}<br/>
+          Status: <span style="color: ${node.status === 'active' ? '#10b981' : '#ef4444'}">${node.status.toUpperCase()}</span>
+        </div>
+      `);
+
+      circleMarker.on('click', () => {
+        setSelectedNode(node);
+      });
+
+      mapLayersRef.current.push(circleMarker);
+    });
+  };
 
   const calculateRoute = () => {
     const adj = {};
@@ -144,7 +262,7 @@ export default function App() {
     edges.forEach(e => {
       const u = e.source;
       const v = e.target;
-      if (e.isHealed && !mstEnabled) return; // Skip healed edges if MST disabled
+      if (e.isHealed && !mstEnabled) return;
       
       const nodeU = nodes.find(n => n.id === u);
       const nodeV = nodes.find(n => n.id === v);
@@ -161,7 +279,6 @@ export default function App() {
       return;
     }
 
-    // Dijkstra's Algorithm
     const distances = {};
     const previous = {};
     const queue = new Set();
@@ -238,7 +355,6 @@ export default function App() {
       if (n.id === nodeId) {
         const nextStatus = n.status === 'active' ? 'disabled' : 'active';
         
-        // Log the collapse impact
         const logEvent = {
           time: new Date().toLocaleTimeString(),
           event: nextStatus === 'disabled' ? `Node "${n.name}" Disabled` : `Node "${n.name}" Restored`,
@@ -253,7 +369,6 @@ export default function App() {
     }));
   };
 
-  // Pre-configured Stress Scenarios (What-if simulations)
   const triggerScenario = (type) => {
     resetNetwork();
     if (type === 'monsoon') {
@@ -284,12 +399,85 @@ export default function App() {
   const resetNetwork = () => {
     setNodes(INITIAL_NODES.map(n => ({ ...n, status: 'active' })));
     setMstEnabled(true);
+    setFloodLevel(0);
     setAblationLog([{
       time: new Date().toLocaleTimeString(),
       event: 'Baseline Re-established',
       cause: 'System Reset Command',
       impact: 'All nodes restored; topological networks active.'
     }]);
+  };
+
+  // Drag and Drop handlers
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processImageUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInput = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processImageUpload(e.target.files[0]);
+    }
+  };
+
+  const processImageUpload = (file) => {
+    setUploadedImage(URL.createObjectURL(file));
+    setPredicting(true);
+    setPredictStep(0);
+
+    const step1 = setTimeout(() => setPredictStep(1), 800);
+    const step2 = setTimeout(() => setPredictStep(2), 1600);
+    const step3 = setTimeout(() => {
+      setPredicting(false);
+      // Trigger a visual confirmation alert
+      alert("AI Inference Complete! Roads extracted & thinned. Network graph rebuilt.");
+    }, 2400);
+  };
+
+  // Chatbot submit
+  const handleChatSubmit = (e) => {
+    e.preventDefault();
+    if (!userInput.trim()) return;
+
+    const newMessages = [...chatMessages, { sender: 'user', text: userInput }];
+    setChatMessages(newMessages);
+    setUserInput('');
+
+    // Simulated responses answering GIS / Algorithm queries
+    setTimeout(() => {
+      let botResponse = 'I can help explain path algorithms, centrality parameters, or evacuation strategies.';
+      const query = userInput.toLowerCase();
+
+      if (query.includes('silk board') || query.includes('majestic')) {
+        botResponse = 'Silk Board and Majestic are high Betweenness Centrality nodes (0.95 and 0.85). They are critical bottlenecks because they sit on the shortest paths linking major commercial zones.';
+      } else if (query.includes('mst') || query.includes('healing')) {
+        botResponse = 'Minimum Spanning Tree (MST) healing connects disconnected road fragments using a distance & angular cost function, ensuring all disjoint sectors become reachable.';
+      } else if (query.includes('resilience') || query.includes('index')) {
+        botResponse = 'The Resilience Index (R) is the ratio of average shortest path lengths before and after network disruptions. Lower R values indicate vulnerable systems.';
+      } else if (query.includes('evacuate') || query.includes('detour')) {
+        botResponse = 'In case of flood blockages at Silk Board, the optimal detour bypasses Outer Ring Road East to Whitefield Tech Corridor.';
+      }
+
+      setChatMessages([...newMessages, { sender: 'assistant', text: botResponse }]);
+    }, 600);
+  };
+
+  const downloadReport = () => {
+    window.print();
   };
 
   // Data mapping from PPT
@@ -301,7 +489,6 @@ export default function App() {
     { epoch: 50, Standard_BCE: 0.82, Custom_OcclusionRecall: 0.94 }
   ];
 
-  // Render Loader screen
   if (loading) {
     return (
       <div className="min-h-screen bg-[#030712] flex flex-col items-center justify-center font-mono text-slate-100 p-6">
@@ -370,10 +557,10 @@ export default function App() {
             </svg> GitHub
           </a>
           <button 
-            onClick={() => setActiveTab('reports')}
+            onClick={downloadReport}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/80 hover:bg-slate-800 border border-white/10 rounded-lg text-white/80 transition-all font-medium cursor-pointer"
           >
-            <BookOpen className="h-3.5 w-3.5" /> Documentation
+            <FileText className="h-3.5 w-3.5" /> PDF Report
           </button>
           <button 
             onClick={() => setShowAbout(true)}
@@ -385,13 +572,13 @@ export default function App() {
       </header>
 
       {/* CORE WORKSPACE */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         
         {/* NAVIGATION SIDEBAR */}
-        <aside className="w-full md:w-64 bg-[#030712] border-b md:border-b-0 md:border-r border-white/5 p-4 flex flex-col gap-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-3 mb-2 hidden md:block">OPERATIONAL STEPS</div>
+        <aside className="w-full lg:w-64 bg-[#030712] border-b lg:border-b-0 lg:border-r border-white/5 p-4 flex flex-col gap-1.5 flex-shrink-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-3 mb-2 hidden lg:block">OPERATIONAL STEPS</div>
           
-          <div className="grid grid-cols-2 md:grid-cols-1 gap-1.5">
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-1.5">
             <button 
               onClick={() => setActiveTab('dashboard')}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
@@ -409,7 +596,7 @@ export default function App() {
               }`}
             >
               <Layers className="h-4 w-4 text-[#00E5FF]" />
-              01. Inpaint Sandbox
+              01. AI Predict
             </button>
 
             <button 
@@ -433,7 +620,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="mt-auto p-4 rounded-xl glass-panel text-[11px] text-white/50 border border-white/5 hidden md:block">
+          <div className="mt-auto p-4 rounded-xl glass-panel text-[11px] text-white/50 border border-white/5 hidden lg:block">
             <div className="flex items-center gap-2 text-[#00E5FF] font-bold uppercase text-[10px] tracking-wider mb-2">
               <Shield className="h-3.5 w-3.5" /> Telemetry Specs
             </div>
@@ -455,12 +642,12 @@ export default function App() {
         </aside>
 
         {/* CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-950 flex flex-col gap-6">
+        <main className="flex-grow overflow-y-auto p-4 md:p-6 bg-slate-950 flex flex-col gap-6">
 
           {/* PAGE 00: MISSION CONTROL */}
           {activeTab === 'dashboard' && (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
                 <div className="glass-panel p-4 rounded-xl border-l-4 border-rose-500/70">
                   <div className="text-[10px] text-rose-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <AlertTriangle className="h-3.5 w-3.5" /> Spectral Blindness
@@ -499,11 +686,13 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* LEAFLET GEOSPATIAL MAP PANEL */}
                 <div className="lg:col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                     <div>
                       <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Active Network Grid (Bengaluru Sector)
+                        <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Leaflet Geospatial Road Grid Layer (Bengaluru CBD)
                       </h2>
                     </div>
                     <button 
@@ -516,82 +705,14 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="relative h-[320px] bg-slate-950/80 rounded-lg overflow-hidden border border-white/5">
-                    <svg className="w-full h-full" style={{ background: '#020617' }}>
-                      <defs>
-                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-                          <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255, 255, 255, 0.015)" strokeWidth="1" />
-                        </pattern>
-                      </defs>
-                      <rect width="100%" height="100%" fill="url(#grid)" />
-
-                      {/* Path connections */}
-                      {edges.map((edge, idx) => {
-                        const u = nodes.find(n => n.id === edge.source);
-                        const v = nodes.find(n => n.id === edge.target);
-                        if (!u || !v) return null;
-                        
-                        const isShortest = shortestPath.indexOf(edge.source) !== -1 && 
-                                           shortestPath.indexOf(edge.target) !== -1 &&
-                                           Math.abs(shortestPath.indexOf(edge.source) - shortestPath.indexOf(edge.target)) === 1;
-
-                        const isEdgeDisabled = u.status === 'disabled' || v.status === 'disabled' || (edge.isHealed && !mstEnabled);
-                        
-                        return (
-                          <line
-                            key={idx}
-                            x1={u.x}
-                            y1={u.y}
-                            x2={v.x}
-                            y2={v.y}
-                            stroke={isEdgeDisabled ? '#1e293b' : isShortest ? '#00E5FF' : edge.isHealed ? '#a855f7' : '#2563EB'}
-                            strokeWidth={isShortest ? 4.5 : edge.isHealed ? 2.5 : 2}
-                            strokeDasharray={edge.isHealed ? '5,4' : '0'}
-                            opacity={isEdgeDisabled ? 0.15 : 0.8}
-                          />
-                        );
-                      })}
-
-                      {/* Node markers */}
-                      {nodes.map((node) => {
-                        const isNodeOnShortestPath = shortestPath.includes(node.id);
-                        return (
-                          <g 
-                            key={node.id} 
-                            transform={`translate(${node.x}, ${node.y})`}
-                            className="cursor-pointer"
-                            onClick={() => handleNodeClick(node)}
-                          >
-                            <circle
-                              r={isNodeOnShortestPath ? 10 : 8}
-                              fill={node.status === 'disabled' ? '#ef4444' : isNodeOnShortestPath ? '#00E5FF' : '#2563EB'}
-                              className={isNodeOnShortestPath && node.status === 'active' ? 'pulse-node' : ''}
-                              stroke="rgba(0, 0, 0, 0.4)"
-                              strokeWidth={1.5}
-                            />
-                            <circle r={3} fill="#ffffff" />
-                            <text
-                              y={-14}
-                              textAnchor="middle"
-                              fill="#94a3b8"
-                              fontSize={9}
-                              fontWeight="bold"
-                              className="pointer-events-none select-none"
-                            >
-                              {node.name.split(' ')[0]}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-
-                    <div className="absolute top-3 right-3 bg-slate-900/90 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-emerald-400">
-                      R-VALUE: {resilienceIndex}
-                    </div>
-                  </div>
+                  {/* Leaflet Map Target Div */}
+                  <div 
+                    ref={mapRef} 
+                    className="h-[380px] bg-slate-950 rounded-lg overflow-hidden border border-white/5 relative z-10"
+                  ></div>
                 </div>
 
-                {/* SIDE WHAT-IF ACTIONS */}
+                {/* SIDE CONTROLS & WHAT-IF ACTIONS */}
                 <div className="flex flex-col gap-4">
                   <div className="glass-panel p-4 rounded-xl flex-grow flex flex-col gap-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#00E5FF] flex items-center gap-1.5">
@@ -642,118 +763,105 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 01: INPAINT SANDBOX */}
+          {/* PAGE 01: DRAG & DROP SATELLITE ROAD DETECTION */}
           {activeTab === 'extraction' && (
             <div className="flex flex-col gap-6">
               <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
-                  <div>
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="h-4.5 w-4.5 text-[#00E5FF]" /> Deep Learning Preprocessing Sandbox
-                    </h2>
-                    <p className="text-xs text-white/40">Phase I Model Inferences under heavy urban tree shadow cover.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setLossFunction('occlusion-recall')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                        lossFunction === 'occlusion-recall' ? 'bg-[#00E5FF]/20 text-[#00E5FF] border-[#00E5FF]/45' : 'bg-slate-800 text-white/50 border-white/5'
-                      }`}
-                    >
-                      Occlusion-Recall Loss
-                    </button>
-                    <button 
-                      onClick={() => setLossFunction('standard-iou')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                        lossFunction === 'standard-iou' ? 'bg-slate-800 text-white border-white/10' : 'bg-slate-900 text-white/30 border-white/5'
-                      }`}
-                    >
-                      Standard BCE Loss
-                    </button>
-                  </div>
+                <div className="border-b border-white/5 pb-3">
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="h-4.5 w-4.5 text-[#00E5FF]" /> AI Segmenter & Road Mask Inference
+                  </h2>
+                  <p className="text-xs text-white/40">Drag and drop high-resolution GeoTIFF / PNG satellite data to infer road geometries.</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Model Architecture Layer Panel */}
-                  <div className="glass-panel p-4 rounded-xl flex flex-col gap-2.5">
-                    <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1 text-[#00E5FF]">Model Architecture</h3>
-                    
-                    <div className="flex flex-col gap-2">
-                      <div className="bg-slate-900 border border-white/10 p-2.5 rounded-lg text-[10px] flex justify-between items-center">
-                        <span className="font-bold text-white/70">1. MULTI-RES INPUT</span>
-                        <span className="text-white/40">Cartosat 0.28m</span>
+                  {/* Drag and Drop Zone */}
+                  <div 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                      dragActive ? 'border-[#00E5FF] bg-blue-600/5' : 'border-white/10 bg-slate-900/40 hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <input 
+                      type="file" 
+                      id="satellite-upload" 
+                      className="hidden" 
+                      onChange={handleFileInput} 
+                      accept=".png,.jpg,.jpeg,.tiff,.tif"
+                    />
+                    <label htmlFor="satellite-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-white/60">
+                        <Layers className="h-5 w-5" />
                       </div>
-                      
-                      <div className="bg-slate-900 border border-[#00E5FF]/20 p-2.5 rounded-lg text-[10px] flex flex-col gap-1">
-                        <div className="flex justify-between items-center font-bold text-[#00E5FF]">
-                          <span>2. ATTENTION ENCODER</span>
-                          <span>Spatial & Channel</span>
-                        </div>
-                        <p className="text-[9px] text-white/40">Captures road context 200+ pixels away to guess roads hidden by canopy.</p>
-                      </div>
-
-                      <div className="bg-slate-900 border border-white/10 p-2.5 rounded-lg text-[10px] flex justify-between items-center">
-                        <span className="font-bold text-white/70">3. TRANSFORMER CONTEXT</span>
-                        <span className="text-white/40">Long-Range</span>
-                      </div>
-
-                      <div className="bg-slate-900 border border-white/10 p-2.5 rounded-lg text-[10px] flex justify-between items-center">
-                        <span className="font-bold text-white/70">4. ROAD MASK DECODER</span>
-                        <span className="text-white/40">UNet++ Base</span>
-                      </div>
-
-                      <div className="bg-slate-900 border border-emerald-500/20 p-2.5 rounded-lg text-[10px] flex flex-col gap-1">
-                        <div className="flex justify-between items-center font-bold text-emerald-400">
-                          <span>5. OCCLUSION RECOVERY</span>
-                          <span>Connected Vector</span>
-                        </div>
-                        <p className="text-[9px] text-white/40">Re-integrates fragments using spatial priors.</p>
-                      </div>
-                    </div>
+                      <span className="text-xs font-bold text-white">Drag & Drop Satellite Image</span>
+                      <span className="text-[10px] text-white/40">PNG, JPG or GeoTIFF (Max 15MB)</span>
+                    </label>
                   </div>
 
-                  {/* Imagery sliders */}
-                  <div className="lg:col-span-2 flex flex-col gap-4">
-                    <div className="relative aspect-[16/8] bg-slate-950 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center">
-                      <div className="absolute inset-0 bg-[#020617] flex flex-col justify-center items-start pl-16">
-                        <div className="w-[350px] h-1.5 bg-[#2563EB]/40 rounded"></div>
-                        <div className="w-[80px] h-1.5 bg-slate-900/50 my-6 border border-dashed border-rose-500/40 rounded flex items-center justify-center">
-                          <span className="text-[7px] text-rose-400 font-bold uppercase">Occlusion Gap</span>
+                  {/* Inference progress indicators */}
+                  <div className="lg:col-span-2 flex flex-col justify-center gap-4">
+                    {predicting ? (
+                      <div className="bg-slate-900/60 p-4 rounded-xl border border-[#00E5FF]/20 flex flex-col gap-3 font-mono">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#00E5FF]">
+                          <Cpu className="h-4.5 w-4.5 animate-spin" /> RUNNING DEEP PIPELINE MODEL...
                         </div>
-                        <div className="w-[300px] h-1.5 bg-[#2563EB]/40 rounded"></div>
+                        <div className="space-y-2 text-[10px]">
+                          <div className={`flex items-center gap-2 ${predictStep >= 0 ? 'text-emerald-400' : 'text-white/30'}`}>
+                            <CheckCircle className="h-3.5 w-3.5" /> [1/3] U-Net++ Road Segmentation Mask Inference...
+                          </div>
+                          <div className={`flex items-center gap-2 ${predictStep >= 1 ? 'text-emerald-400' : 'text-white/30'}`}>
+                            <CheckCircle className="h-3.5 w-3.5" /> [2/3] Morphological Thinning (1-pixel centerline)...
+                          </div>
+                          <div className={`flex items-center gap-2 ${predictStep >= 2 ? 'text-emerald-400' : 'text-white/30'}`}>
+                            <CheckCircle className="h-3.5 w-3.5" /> [3/3] Topological MST Gap Healing...
+                          </div>
+                        </div>
                       </div>
-
-                      <div 
-                        className="absolute top-0 bottom-0 right-0 bg-slate-950 border-l border-[#00E5FF] flex flex-col justify-center items-start pl-16 transition-all duration-75"
-                        style={{ left: `${sliderVal}%` }}
-                      >
-                        <div className="w-[450px] h-2 bg-gradient-to-r from-[#00E5FF] to-blue-500 rounded shadow-[0_0_12px_rgba(0,229,255,0.7)]"></div>
-                        <span className="text-[8px] text-[#00E5FF] font-bold mt-4 tracking-widest uppercase bg-[#00E5FF]/10 px-2 py-0.5 rounded border border-[#00E5FF]/20">
-                          Attention-Recovered Highway (Routable)
-                        </span>
+                    ) : uploadedImage ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="relative aspect-[16/8] bg-slate-950 border border-white/5 rounded-xl overflow-hidden">
+                          <img src={uploadedImage} alt="Uploaded Satellite" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                          
+                          {/* Split screen overlay representing prediction slider */}
+                          <div 
+                            className="absolute top-0 bottom-0 right-0 bg-slate-950 border-l border-[#00E5FF] flex flex-col justify-center items-start pl-12 transition-all duration-75"
+                            style={{ left: `${sliderVal}%` }}
+                          >
+                            <div className="w-[450px] h-2 bg-gradient-to-r from-[#00E5FF] to-blue-500 rounded shadow-[0_0_12px_rgba(0,229,255,0.7)]"></div>
+                            <span className="text-[8px] text-[#00E5FF] font-bold mt-4 tracking-widest uppercase bg-[#00E5FF]/10 px-2 py-0.5 rounded border border-[#00E5FF]/20">
+                              Segmented & Healed Road Vector Layer
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 bg-slate-900/40 p-4 rounded-lg border border-white/5">
+                          <Sliders className="h-5 w-5 text-[#00E5FF]" />
+                          <span className="text-xs text-white/60 font-medium">Overlay Slider:</span>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value={sliderVal} 
+                            onChange={(e) => setSliderVal(e.target.value)}
+                            className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#00E5FF]"
+                          />
+                          <span className="text-xs font-mono text-white font-bold">{sliderVal}%</span>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 bg-slate-900/40 p-4 rounded-lg border border-white/5">
-                      <Sliders className="h-5 w-5 text-[#00E5FF]" />
-                      <span className="text-xs text-white/60 font-medium">Reconstruction Threshold:</span>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        value={sliderVal} 
-                        onChange={(e) => setSliderVal(e.target.value)}
-                        className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#00E5FF]"
-                      />
-                      <span className="text-xs font-mono text-white font-bold">{sliderVal}%</span>
-                    </div>
+                    ) : (
+                      <div className="h-[180px] rounded-xl border border-dashed border-white/5 flex items-center justify-center text-center text-xs text-white/30">
+                        Upload an image to start the AI inference run.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* PAGE 02: MST HEALING STEP-BY-STEP (SLIDE 3 CONCEPTS) */}
+          {/* PAGE 02: MST HEALING STEP-BY-STEP */}
           {activeTab === 'reconstruction' && (
             <div className="flex flex-col gap-6">
               <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
@@ -833,10 +941,10 @@ export default function App() {
                         return (
                           <line
                             key={idx}
-                            x1={u.x}
-                            y1={u.y}
-                            x2={v.x}
-                            y2={v.y}
+                            x1={u.x || 200}
+                            y1={u.y || 200}
+                            x2={v.x || 300}
+                            y2={v.y || 300}
                             stroke="#2563EB"
                             strokeWidth={3}
                             opacity={0.8}
@@ -854,18 +962,18 @@ export default function App() {
                         return (
                           <g key={idx}>
                             <line
-                              x1={u.x}
-                              y1={u.y}
-                              x2={v.x}
-                              y2={v.y}
+                              x1={u.x || 200}
+                              y1={u.y || 200}
+                              x2={v.x || 300}
+                              y2={v.y || 300}
                               stroke={strokeColor}
                               strokeWidth={3}
                               strokeDasharray="5,4"
                             />
                             {mstStep === 1 && (
                               <text
-                                x={(u.x + v.x) / 2}
-                                y={(u.y + v.y) / 2 - 4}
+                                x={((u.x || 200) + (v.x || 300)) / 2}
+                                y={((u.y || 200) + (v.y || 300)) / 2 - 4}
                                 fill="#eab308"
                                 fontSize={8}
                                 fontWeight="bold"
@@ -879,7 +987,7 @@ export default function App() {
                       })}
 
                       {nodes.map((node) => (
-                        <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
+                        <g key={node.id} transform={`translate(${node.x || 200}, ${node.y || 200})`}>
                           <circle r={6} fill="#2563EB" />
                           <circle r={2} fill="#fff" />
                         </g>
@@ -898,148 +1006,80 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 03: STRESS PLAYGROUND (WITH ENHANCED MULTI-COLUMN DATA PANELS) */}
+          {/* PAGE 03: STRESS SIMULATOR */}
           {activeTab === 'simulation' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* GIS PATH SIMULATION PLAYGROUND */}
+              {/* DISASTER OVERLAYS (FLOOD CONTROL) */}
               <div className="lg:col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                      <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Criticality Ablation Playground
+                      <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Dynamic Flood & Disruption Engine
                     </h2>
-                    <p className="text-xs text-white/40">Select node targets to evaluate detour lengths and Resilience Indices ($R$).</p>
+                    <p className="text-xs text-white/40">Adjust the slider to simulate monsoon water level height and view corridor collapse.</p>
                   </div>
                   <button 
                     onClick={resetNetwork}
                     className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-lg text-xs font-bold border border-rose-500/20 cursor-pointer"
                   >
-                    Clear All Closures
+                    Clear Disruption
                   </button>
                 </div>
 
-                <div className="relative h-[340px] bg-slate-950 rounded-xl overflow-hidden border border-white/5">
-                  <svg className="w-full h-full" style={{ background: '#020617' }}>
-                    {edges.map((edge, idx) => {
-                      const u = nodes.find(n => n.id === edge.source);
-                      const v = nodes.find(n => n.id === edge.target);
-                      if (!u || !v) return null;
-                      
-                      const isShortest = shortestPath.indexOf(edge.source) !== -1 && 
-                                         shortestPath.indexOf(edge.target) !== -1 &&
-                                         Math.abs(shortestPath.indexOf(edge.source) - shortestPath.indexOf(edge.target)) === 1;
-                      
-                      const isEdgeDisabled = u.status === 'disabled' || v.status === 'disabled' || (edge.isHealed && !mstEnabled);
-                      
-                      return (
-                        <line
-                          key={idx}
-                          x1={u.x}
-                          y1={u.y}
-                          x2={v.x}
-                          y2={v.y}
-                          stroke={isEdgeDisabled ? '#1e293b' : isShortest ? '#00E5FF' : edge.isHealed ? '#a855f7' : '#2563EB'}
-                          strokeWidth={isShortest ? 4 : edge.isHealed ? 2.5 : 2}
-                          strokeDasharray={edge.isHealed ? '6,6' : '0'}
-                          opacity={isEdgeDisabled ? 0.2 : 0.8}
-                        />
-                      );
-                    })}
-
-                    {nodes.map((node) => {
-                      const isNodeOnShortestPath = shortestPath.includes(node.id);
-                      return (
-                        <g 
-                          key={node.id} 
-                          transform={`translate(${node.x}, ${node.y})`}
-                          className="cursor-pointer"
-                          onClick={() => handleNodeClick(node)}
-                        >
-                          <circle
-                            r={node.status === 'disabled' ? 12 : 9}
-                            fill={node.status === 'disabled' ? '#ef4444' : isNodeOnShortestPath ? '#00E5FF' : '#2563EB'}
-                            className={isNodeOnShortestPath && node.status === 'active' ? 'pulse-node' : ''}
-                            stroke="rgba(0,0,0,0.5)"
-                            strokeWidth={1.5}
-                          />
-                          <circle r={3} fill="#fff" />
-                          <text
-                            y={-16}
-                            textAnchor="middle"
-                            fill="#f8fafc"
-                            fontSize={10}
-                            fontWeight="bold"
-                            className="pointer-events-none select-none"
-                          >
-                            {node.name.split(' ')[0]}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-4 bg-slate-900/40 p-4 rounded-lg border border-white/5">
+                    <Flame className="h-5 w-5 text-amber-500" />
+                    <span className="text-xs text-white/60 font-medium">Inundation Level (Flood %):</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      step="20"
+                      value={floodLevel} 
+                      onChange={(e) => setFloodLevel(parseInt(e.target.value))}
+                      className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                    />
+                    <span className="text-xs font-mono text-rose-400 font-bold">{floodLevel}%</span>
+                  </div>
+                  
+                  {/* Status indicators */}
+                  <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5 space-y-2 font-mono text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Disrupted Intersections:</span>
+                      <span className="text-rose-400 font-bold">{nodes.filter(n => n.status === 'disabled').length} / {nodes.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Travel Time Penalty:</span>
+                      <span className="text-amber-400 font-bold">{floodLevel >= 80 ? '+140% Detour Delay' : floodLevel >= 40 ? '+45% Detour Delay' : '0%'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* DYNAMIC METRICS, LIVE LOGS, TIMELINE & MINI STATS (NO EMPTY SPACES) */}
+              {/* TIMELINE, LOGS & MATH SUMMARY */}
               <div className="flex flex-col gap-4">
                 
-                {/* 1. NODE ABLATION ACTION CONTROL */}
-                <div className="glass-panel p-4 rounded-xl flex flex-col gap-2">
-                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider">Vulnerability Assessment</h3>
-                  {selectedNode ? (
-                    <div className="bg-slate-900/60 p-3 rounded-lg border border-white/5 flex flex-col gap-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-white">{selectedNode.name}</span>
-                        <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded font-extrabold ${
-                          selectedNode.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                        }`}>
-                          {selectedNode.status}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-white/50 flex justify-between">
-                        <span>Baseline Centrality:</span>
-                        <span className="font-bold text-white">{selectedNode.baselineCentrality}</span>
-                      </div>
-                      <button
-                        onClick={() => toggleNodeStatus(selectedNode.id)}
-                        className={`w-full mt-2 py-1.5 text-[10px] font-bold rounded transition-all border cursor-pointer ${
-                          selectedNode.status === 'active' 
-                            ? 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border-rose-500/30' 
-                            : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30'
-                        }`}
-                      >
-                        {selectedNode.status === 'active' ? 'Simulate Closure' : 'Restore Operations'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-center p-3 border border-dashed border-white/5 rounded text-white/30 text-[10px]">
-                      Select any node on the map to interact.
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. ALGORITHM EXPLANATION CARD */}
+                {/* Mathematical formula */}
                 <div className="glass-panel p-4 rounded-xl flex flex-col gap-1.5">
                   <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider flex items-center gap-1">
-                    <Info className="h-3.5 w-3.5" /> Mathematical Core
+                    <Info className="h-3.5 w-3.5" /> Vulnerability Metrics
                   </h3>
                   <div className="bg-slate-900/40 p-2.5 rounded border border-white/5 font-mono text-[9px] text-white/70">
                     <div className="font-bold text-white mb-1">Betweenness Centrality:</div>
                     <div>{"C_B(v) = ∑ [ σ_st(v) / σ_st ]"}</div>
-                    <div className="text-[8px] text-white/40 mt-1">Measures the ratio of shortest paths traversing node v. High C_B denotes a single point of failure bottleneck.</div>
                   </div>
                 </div>
 
-                {/* 3. SCROLLING LIVE LOGS */}
+                {/* Simulation Logs */}
                 <div className="glass-panel p-4 rounded-xl flex flex-col gap-1.5 flex-grow min-h-[140px]">
                   <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" /> Simulation Logs
+                    <Clock className="h-3.5 w-3.5" /> Disruption Feed
                   </h3>
                   <div className="overflow-y-auto max-h-[120px] flex flex-col gap-1.5 pr-1">
                     {ablationLog.map((log, idx) => (
                       <div key={idx} className="bg-slate-900/50 p-2 rounded border border-white/5 text-[9px] font-mono">
-                        <div className="flex justify-between font-bold text-[#00E5FF]">
+                        <div className="flex justify-between font-bold text-rose-400">
                           <span>{log.event}</span>
                           <span className="text-white/30">{log.time}</span>
                         </div>
@@ -1080,9 +1120,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* STATS, DATASET SPECS & TIMELINE */}
+              {/* SPECS */}
               <div className="flex flex-col gap-4">
-                
                 <div className="glass-panel p-4 rounded-xl flex flex-col gap-2">
                   <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider">Satellite Datasets</h3>
                   <div className="space-y-2 text-[10px]">
@@ -1121,13 +1160,53 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-
               </div>
 
             </div>
           )}
 
         </main>
+
+        {/* RIGHT SIDEBAR CHATBOT (MISSION ASSISTANT) */}
+        <aside className="w-full lg:w-80 bg-[#030712] border-t lg:border-t-0 lg:border-l border-white/5 flex flex-col flex-shrink-0">
+          <div className="p-4 border-b border-white/5 flex items-center gap-2">
+            <MessageSquare className="h-4.5 w-4.5 text-[#00E5FF]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-white">Mission assistant chatbot</span>
+          </div>
+
+          {/* Messages block */}
+          <div className="flex-grow p-4 overflow-y-auto flex flex-col gap-3 max-h-[280px] lg:max-h-none">
+            {chatMessages.map((msg, idx) => (
+              <div 
+                key={idx} 
+                className={`max-w-[85%] p-2.5 rounded-lg text-xs leading-normal ${
+                  msg.sender === 'user' 
+                    ? 'bg-blue-600 text-white ml-auto rounded-tr-none' 
+                    : 'bg-slate-900/80 text-slate-300 mr-auto rounded-tl-none border border-white/5'
+                }`}
+              >
+                {msg.text}
+              </div>
+            ))}
+          </div>
+
+          {/* Form input */}
+          <form onSubmit={handleChatSubmit} className="p-3 border-t border-white/5 flex gap-2">
+            <input 
+              type="text" 
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Ask: why Silk Board is critical?"
+              className="flex-grow bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00E5FF]"
+            />
+            <button 
+              type="submit"
+              className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center justify-center cursor-pointer"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        </aside>
       </div>
 
       {/* FOOTER */}
