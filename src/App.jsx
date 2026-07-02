@@ -19,7 +19,11 @@ import {
   Database,
   Network,
   Shield,
-  HelpCircle
+  HelpCircle,
+  BookOpen,
+  X,
+  Clock,
+  BarChart3
 } from 'lucide-react';
 import { 
   AreaChart, Area, 
@@ -42,18 +46,18 @@ const INITIAL_NODES = [
 ];
 
 const INITIAL_EDGES = [
-  { source: '1', target: '5', length: 180, isHealed: false, type: 'arterial', health: 100 },
-  { source: '1', target: '7', length: 110, isHealed: false, type: 'arterial', health: 100 },
-  { source: '1', target: '6', length: 130, isHealed: false, type: 'highway', health: 100 },
-  { source: '7', target: '5', length: 170, isHealed: false, type: 'arterial', health: 100 },
-  { source: '6', target: '4', length: 120, isHealed: false, type: 'arterial', health: 100 },
-  { source: '4', target: '8', length: 190, isHealed: false, type: 'arterial', health: 100 },
-  { source: '6', target: '2', length: 150, isHealed: false, type: 'arterial', health: 100 },
-  { source: '2', target: '3', length: 110, isHealed: false, type: 'highway', health: 100 },
-  { source: '3', target: '9', length: 140, isHealed: false, type: 'highway', health: 100 },
-  { source: '2', target: '10', length: 170, isHealed: false, type: 'arterial', health: 100 },
-  { source: '10', target: '8', length: 130, isHealed: false, type: 'arterial', health: 100 },
-  { source: '3', target: '10', length: 150, isHealed: false, type: 'arterial', health: 100 },
+  { source: '1', target: '5', length: 180, isHealed: false, type: 'arterial' },
+  { source: '1', target: '7', length: 110, isHealed: false, type: 'arterial' },
+  { source: '1', target: '6', length: 130, isHealed: false, type: 'highway' },
+  { source: '7', target: '5', length: 170, isHealed: false, type: 'arterial' },
+  { source: '6', target: '4', length: 120, isHealed: false, type: 'arterial' },
+  { source: '4', target: '8', length: 190, isHealed: false, type: 'arterial' },
+  { source: '6', target: '2', length: 150, isHealed: false, type: 'arterial' },
+  { source: '2', target: '3', length: 110, isHealed: false, type: 'highway' },
+  { source: '3', target: '9', length: 140, isHealed: false, type: 'highway' },
+  { source: '2', target: '10', length: 170, isHealed: false, type: 'arterial' },
+  { source: '10', target: '8', length: 130, isHealed: false, type: 'arterial' },
+  { source: '3', target: '10', length: 150, isHealed: false, type: 'arterial' },
   
   // Broken segments (Occlusions) healed by MST topological algorithm
   { source: '5', target: '6', length: 160, isHealed: true, type: 'healed', occlusion: 'Tree Canopy', gapScore: 'Dist: 32m, Dev: 14°' },
@@ -62,6 +66,10 @@ const INITIAL_EDGES = [
 ];
 
 export default function App() {
+  const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingText, setLoadingText] = useState('Initializing Telemetry...');
+  
   const [activeTab, setActiveTab] = useState('dashboard');
   const [nodes, setNodes] = useState(INITIAL_NODES);
   const [edges, setEdges] = useState(INITIAL_EDGES);
@@ -86,7 +94,36 @@ export default function App() {
   // Model Playground State
   const [lossFunction, setLossFunction] = useState('occlusion-recall');
   const [sliderVal, setSliderVal] = useState(65);
-  const [satelliteType, setSatelliteType] = useState('cartosat');
+  const [showAbout, setShowAbout] = useState(false);
+
+  // Loader sequence
+  useEffect(() => {
+    const timer1 = setTimeout(() => {
+      setLoadingProgress(33);
+      setLoadingText('🛰️ Initializing Cartosat-3 Telemetry Channels...');
+    }, 600);
+
+    const timer2 = setTimeout(() => {
+      setLoadingProgress(66);
+      setLoadingText('🧠 Loading Deep Attention Segmentation Pipeline...');
+    }, 1200);
+
+    const timer3 = setTimeout(() => {
+      setLoadingProgress(100);
+      setLoadingText('🕸️ Building Bengaluru Sector Topological Graph...');
+    }, 1800);
+
+    const timer4 = setTimeout(() => {
+      setLoading(false);
+    }, 2400);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(timer4);
+    };
+  }, []);
 
   // Trigger Routing logic when structural settings shift
   useEffect(() => {
@@ -185,8 +222,6 @@ export default function App() {
       return u && v && u.status === 'active' && v.status === 'active';
     }).length;
 
-    const totalEdges = edges.length;
-    
     let calculatedR = 1.0;
     if (activeNodes < nodes.length) {
       const disabledCount = nodes.length - activeNodes;
@@ -222,7 +257,6 @@ export default function App() {
   const triggerScenario = (type) => {
     resetNetwork();
     if (type === 'monsoon') {
-      // Flood both Silk Board (3) and Koramangala (2)
       setNodes(prev => prev.map(n => {
         if (n.id === '3' || n.id === '2') return { ...n, status: 'disabled' };
         return n;
@@ -234,7 +268,6 @@ export default function App() {
         impact: 'Silk Board and Koramangala sectors offline. Complete southern corridor failure.'
       }, ...prev]);
     } else if (type === 'accident') {
-      // Block Hebbal Flyover (5)
       setNodes(prev => prev.map(n => {
         if (n.id === '5') return { ...n, status: 'disabled' };
         return n;
@@ -268,200 +301,223 @@ export default function App() {
     { epoch: 50, Standard_BCE: 0.82, Custom_OcclusionRecall: 0.94 }
   ];
 
+  // Render Loader screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#030712] flex flex-col items-center justify-center font-mono text-slate-100 p-6">
+        <div className="max-w-md w-full flex flex-col items-center gap-6">
+          <div className="h-16 w-16 rounded-2xl bg-blue-600/20 flex items-center justify-center border border-[#00E5FF]/40 shadow-[0_0_30px_rgba(0,229,255,0.3)] animate-pulse">
+            <Cpu className="h-9 w-9 text-[#00E5FF]" />
+          </div>
+          
+          <div className="w-full flex flex-col gap-2">
+            <div className="flex justify-between text-xs text-white/50">
+              <span>SYSTEM INITIALIZATION</span>
+              <span>{loadingProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-600 to-[#00E5FF] transition-all duration-500 shadow-[0_0_10px_rgba(0,229,255,0.5)]"
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <p className="text-xs text-emerald-400 font-bold">{loadingText}</p>
+            <p className="text-[10px] text-white/20 mt-1">ISRO NNRMS • CARTOSAT-3 DEEP CORE</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#030712] flex flex-col font-sans select-none text-slate-100">
+    <div className="min-h-screen bg-[#030712] flex flex-col font-sans select-none text-slate-100 relative">
       
-      {/* GLOWING HEADER */}
-      <header className="glass-panel-heavy border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+      {/* HEADER */}
+      <header className="glass-panel-heavy border-b border-white/10 px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-blue-600/30 flex items-center justify-center border border-[#00E5FF]/40 shadow-[0_0_15px_rgba(0,229,255,0.25)]">
-            <Cpu className="h-6 w-6 text-[#00E5FF] animate-pulse" />
+          <div className="h-12 w-12 rounded-lg bg-blue-600/30 flex items-center justify-center border border-[#00E5FF]/40 shadow-[0_0_15px_rgba(0,229,255,0.25)] flex-shrink-0">
+            <Cpu className="h-7 w-7 text-[#00E5FF]" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#00E5FF] bg-[#00E5FF]/10 px-2 py-0.5 rounded border border-[#00E5FF]/20">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#00E5FF] bg-[#00E5FF]/10 px-2 py-0.5 rounded border border-[#00E5FF]/20">
                 ISRO NNRMS PIPELINE
               </span>
-              <span className="text-xs text-white/40">Powered by Cartosat-3</span>
+              <span className="text-xs text-white/40">🛰️ Cartosat-3 Core (0.28m)</span>
             </div>
-            <h1 className="text-lg font-bold tracking-tight text-white mt-0.5">
-              Route Resilience Command: Occlusion-Robust Road Graph Analyst
+            <h1 className="text-base font-bold tracking-tight text-white mt-0.5">
+              Route Resilience Command Dashboard
             </h1>
+            <p className="text-[11px] text-slate-400">
+              AI-powered Occlusion Robust Road Extraction using Graph Theory & Deep Learning
+            </p>
           </div>
         </div>
 
-        {/* Global Stats */}
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="bg-slate-900/90 border border-white/5 px-3 py-2 rounded-lg flex items-center gap-2">
-            <Network className="h-4 w-4 text-[#00E5FF]" />
-            <span className="text-white/50">Connectivity:</span>
-            <span className="text-emerald-400 font-bold">{mstEnabled ? '94.1% (Healed)' : '53.3% (Fragmented)'}</span>
-          </div>
-
-          <div className="bg-slate-900/90 border border-white/5 px-3 py-2 rounded-lg flex items-center gap-2">
-            <Shield className="h-4 w-4 text-amber-400" />
-            <span className="text-white/50">Resilience Index (R):</span>
-            <span className={`font-bold ${resilienceIndex > 0.7 ? 'text-emerald-400' : 'text-rose-400'}`}>{resilienceIndex}</span>
-          </div>
-
-          <button 
-            onClick={resetNetwork}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-lg border border-blue-500/30 transition-all cursor-pointer"
+        {/* Global Action Bar */}
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <a 
+            href="https://github.com/Daksh88934/isro" 
+            target="_blank" 
+            rel="noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/80 hover:bg-slate-800 border border-white/10 rounded-lg text-white/80 transition-all font-medium"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Reset Grid
+            <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+              <path fillRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.137 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" clipRule="evenodd" />
+            </svg> GitHub
+          </a>
+          <button 
+            onClick={() => setActiveTab('reports')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/80 hover:bg-slate-800 border border-white/10 rounded-lg text-white/80 transition-all font-medium cursor-pointer"
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Documentation
+          </button>
+          <button 
+            onClick={() => setShowAbout(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 text-[#00E5FF] rounded-lg transition-all font-bold cursor-pointer"
+          >
+            ℹ About Project
           </button>
         </div>
       </header>
 
       {/* CORE WORKSPACE */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
         {/* NAVIGATION SIDEBAR */}
-        <aside className="w-64 bg-[#030712] border-r border-white/5 p-4 flex flex-col gap-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-3 mb-2">SYSTEM STAGES</div>
+        <aside className="w-full md:w-64 bg-[#030712] border-b md:border-b-0 md:border-r border-white/5 p-4 flex flex-col gap-1.5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-3 mb-2 hidden md:block">OPERATIONAL STEPS</div>
           
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
-              activeTab === 'dashboard' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Activity className="h-4 w-4 text-[#00E5FF]" />
-            00. Mission Control
-          </button>
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-1.5">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
+                activeTab === 'dashboard' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Activity className="h-4 w-4 text-[#00E5FF]" />
+              00. Mission Control
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('extraction')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
-              activeTab === 'extraction' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <Layers className="h-4 w-4 text-[#00E5FF]" />
-            01. Segment & Inpaint
-          </button>
+            <button 
+              onClick={() => setActiveTab('extraction')}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
+                activeTab === 'extraction' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <Layers className="h-4 w-4 text-[#00E5FF]" />
+              01. Inpaint Sandbox
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('reconstruction')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
-              activeTab === 'reconstruction' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <GitCommit className="h-4 w-4 text-[#00E5FF]" />
-            02. MST Healing Debugger
-          </button>
+            <button 
+              onClick={() => setActiveTab('reconstruction')}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
+                activeTab === 'reconstruction' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <GitCommit className="h-4 w-4 text-[#00E5FF]" />
+              02. MST Debugger
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('simulation')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
-              activeTab === 'simulation' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <MapIcon className="h-4 w-4 text-[#00E5FF]" />
-            03. Stress Simulator
-          </button>
+            <button 
+              onClick={() => setActiveTab('simulation')}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
+                activeTab === 'simulation' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <MapIcon className="h-4 w-4 text-[#00E5FF]" />
+              03. Stress Playground
+            </button>
+          </div>
 
-          <button 
-            onClick={() => setActiveTab('analytics')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-semibold tracking-wider uppercase transition-all ${
-              activeTab === 'analytics' ? 'bg-blue-600/15 border-l-4 border-[#00E5FF] text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <TrendingUp className="h-4 w-4 text-[#00E5FF]" />
-            04. Model Evaluation
-          </button>
-
-          <div className="mt-auto p-4 rounded-xl glass-panel text-[11px] text-white/50 border border-white/5">
+          <div className="mt-auto p-4 rounded-xl glass-panel text-[11px] text-white/50 border border-white/5 hidden md:block">
             <div className="flex items-center gap-2 text-[#00E5FF] font-bold uppercase text-[10px] tracking-wider mb-2">
-              <Shield className="h-3.5 w-3.5" /> Pipeline Telemetry
+              <Shield className="h-3.5 w-3.5" /> Telemetry Specs
             </div>
             <div className="space-y-1.5 font-mono">
               <div className="flex justify-between">
-                <span>Loss Func:</span>
+                <span>Loss Target:</span>
                 <span className="text-[#00E5FF] uppercase font-bold">{lossFunction}</span>
               </div>
               <div className="flex justify-between">
-                <span>MST Tolerance:</span>
+                <span>MST Limit:</span>
                 <span className="text-amber-400 font-bold">35° Max Angle</span>
               </div>
               <div className="flex justify-between">
-                <span>Active Targets:</span>
-                <span className="text-emerald-400 font-bold">LISS-4 / Cartosat-3</span>
+                <span>Connectivity:</span>
+                <span className="text-emerald-400 font-bold">{mstEnabled ? '94.1%' : '53.3%'}</span>
               </div>
             </div>
           </div>
         </aside>
 
-        {/* CONTENT LAYOUT CONTAINER */}
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-950 flex flex-col gap-6">
+        {/* CONTENT AREA */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-950 flex flex-col gap-6">
 
           {/* PAGE 00: MISSION CONTROL */}
           {activeTab === 'dashboard' && (
             <div className="flex flex-col gap-6">
-              
-              {/* SLIDES 1 & 5 CONCEPT: PROBLEM & SOLUTIONS */}
-              <div className="grid grid-cols-4 gap-4">
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-rose-500/70 relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="glass-panel p-4 rounded-xl border-l-4 border-rose-500/70">
                   <div className="text-[10px] text-rose-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <AlertTriangle className="h-3.5 w-3.5" /> Spectral Blindness
                   </div>
                   <p className="text-[11px] text-slate-400 leading-normal">
-                    Tree covers and building shadows block standard satellite road extractions, creating broken segmentation masks.
+                    Tree covers and building shadows block standard satellite road extractions.
                   </p>
                 </div>
                 
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-purple-500/70 relative">
+                <div className="glass-panel p-4 rounded-xl border-l-4 border-purple-500/70">
                   <div className="text-[10px] text-purple-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <GitCommit className="h-3.5 w-3.5" /> Broken Topology
                   </div>
                   <p className="text-[11px] text-slate-400 leading-normal">
-                    Pixel outputs lack topological continuity, making raw masks useless for GIS path planning or route verification.
+                    Pixel outputs lack topological continuity, making raw masks unusable.
                   </p>
                 </div>
 
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-blue-500/70 relative">
+                <div className="glass-panel p-4 rounded-xl border-l-4 border-blue-500/70">
                   <div className="text-[10px] text-[#00E5FF] font-extrabold uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <Activity className="h-3.5 w-3.5" /> Bottleneck Intel
                   </div>
                   <p className="text-[11px] text-slate-400 leading-normal">
-                    Identifies high-betweenness structural centers acting as "Gatekeeper Nodes" during emergency scenarios.
+                    Identifies high-betweenness structural centers acting as Gatekeeper Nodes.
                   </p>
                 </div>
 
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-emerald-500/70 relative">
+                <div className="glass-panel p-4 rounded-xl border-l-4 border-emerald-500/70">
                   <div className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <Shield className="h-3.5 w-3.5" /> What-If Simulation
                   </div>
                   <p className="text-[11px] text-slate-400 leading-normal">
-                    Allows planners to systematically disable critical junctions to analyze detour delay metrics and routing curves.
+                    Simulate systematic failures to map global resilience curves.
                   </p>
                 </div>
               </div>
 
-              {/* DYNAMIC PIPELINE MAP */}
-              <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
-                  <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                     <div>
                       <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                         <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Active Network Grid (Bengaluru Sector)
                       </h2>
-                      <p className="text-xs text-white/40">Topologically healed layout representing major corridors.</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setMstEnabled(!mstEnabled)} 
-                        className={`px-3 py-1.5 rounded-lg text-xs border font-bold transition-all cursor-pointer ${
-                          mstEnabled ? 'bg-[#00E5FF]/20 text-[#00E5FF] border-[#00E5FF]/45 shadow-[0_0_10px_rgba(0,229,255,0.1)]' : 'bg-slate-900/60 text-slate-500 border-white/5'
-                        }`}
-                      >
-                        MST GAP HEALING: {mstEnabled ? 'ACTIVE' : 'DISABLED'}
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => setMstEnabled(!mstEnabled)} 
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        mstEnabled ? 'bg-[#00E5FF]/20 text-[#00E5FF] border-[#00E5FF]/45 shadow-[0_0_10px_rgba(0,229,255,0.1)]' : 'bg-slate-900/60 text-slate-500 border-white/5'
+                      }`}
+                    >
+                      MST GAP HEALING: {mstEnabled ? 'ACTIVE' : 'DISABLED'}
+                    </button>
                   </div>
 
                   <div className="relative h-[320px] bg-slate-950/80 rounded-lg overflow-hidden border border-white/5">
                     <svg className="w-full h-full" style={{ background: '#020617' }}>
-                      {/* Grid Lines */}
                       <defs>
                         <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
                           <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255, 255, 255, 0.015)" strokeWidth="1" />
@@ -529,14 +585,13 @@ export default function App() {
                       })}
                     </svg>
 
-                    {/* Dynamic overlay label */}
                     <div className="absolute top-3 right-3 bg-slate-900/90 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-emerald-400">
                       R-VALUE: {resilienceIndex}
                     </div>
                   </div>
                 </div>
 
-                {/* SIDE STATS / WHAT-IF ACTIONS */}
+                {/* SIDE WHAT-IF ACTIONS */}
                 <div className="flex flex-col gap-4">
                   <div className="glass-panel p-4 rounded-xl flex-grow flex flex-col gap-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#00E5FF] flex items-center gap-1.5">
@@ -562,7 +617,7 @@ export default function App() {
 
                     <hr className="border-white/5" />
 
-                    <div className="flex-1 flex flex-col gap-2">
+                    <div className="flex flex-col gap-2">
                       <div className="text-[10px] uppercase font-bold text-white/30 tracking-wider">Detour Path Planner</div>
                       <div className="grid grid-cols-2 gap-2">
                         <select 
@@ -584,15 +639,14 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* PAGE 01: SEGMENT & INPAINT (SLIDE 4 CONCEPTS) */}
+          {/* PAGE 01: INPAINT SANDBOX */}
           {activeTab === 'extraction' && (
             <div className="flex flex-col gap-6">
               <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="h-4.5 w-4.5 text-[#00E5FF]" /> Deep Learning Preprocessing Sandbox
@@ -619,10 +673,10 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Model Architecture Layer Panel */}
                   <div className="glass-panel p-4 rounded-xl flex flex-col gap-2.5">
-                    <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1 text-[#00E5FF]">Model Architecture (Slide 4)</h3>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1 text-[#00E5FF]">Model Architecture</h3>
                     
                     <div className="flex flex-col gap-2">
                       <div className="bg-slate-900 border border-white/10 p-2.5 rounded-lg text-[10px] flex justify-between items-center">
@@ -659,18 +713,16 @@ export default function App() {
                   </div>
 
                   {/* Imagery sliders */}
-                  <div className="col-span-2 flex flex-col gap-4">
+                  <div className="lg:col-span-2 flex flex-col gap-4">
                     <div className="relative aspect-[16/8] bg-slate-950 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center">
                       <div className="absolute inset-0 bg-[#020617] flex flex-col justify-center items-start pl-16">
                         <div className="w-[350px] h-1.5 bg-[#2563EB]/40 rounded"></div>
-                        {/* Broken occlusion part */}
                         <div className="w-[80px] h-1.5 bg-slate-900/50 my-6 border border-dashed border-rose-500/40 rounded flex items-center justify-center">
                           <span className="text-[7px] text-rose-400 font-bold uppercase">Occlusion Gap</span>
                         </div>
                         <div className="w-[300px] h-1.5 bg-[#2563EB]/40 rounded"></div>
                       </div>
 
-                      {/* Right overlay */}
                       <div 
                         className="absolute top-0 bottom-0 right-0 bg-slate-950 border-l border-[#00E5FF] flex flex-col justify-center items-start pl-16 transition-all duration-75"
                         style={{ left: `${sliderVal}%` }}
@@ -705,14 +757,14 @@ export default function App() {
           {activeTab === 'reconstruction' && (
             <div className="flex flex-col gap-6">
               <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                       <GitCommit className="h-4.5 w-4.5 text-[#00E5FF]" /> Phase II Graph Topological Healing Debugger
                     </h2>
                     <p className="text-xs text-white/40">Step-by-step visual workflow of the Disjoint Set MST healing algorithm.</p>
                   </div>
-                  <div className="flex items-center gap-1 bg-slate-900 p-1.5 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-1 bg-slate-900 p-1.5 rounded-lg border border-white/5 flex-wrap">
                     {[0, 1, 2, 3].map((stepIdx) => (
                       <button 
                         key={stepIdx} 
@@ -727,9 +779,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6">
-                  {/* Stepper info cards */}
-                  <div className="glass-panel p-4 rounded-xl flex flex-col justify-between">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="glass-panel p-4 rounded-xl flex flex-col justify-between min-h-[140px]">
                     <div>
                       <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#00E5FF] bg-[#00E5FF]/10 px-2 py-0.5 rounded border border-[#00E5FF]/20">
                         STEP {mstStep + 1} of 4
@@ -773,10 +824,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Visual canvas depicting the active step */}
-                  <div className="col-span-2 relative h-[280px] bg-slate-950 rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
+                  <div className="lg:col-span-2 relative h-[280px] bg-slate-950 rounded-xl border border-white/5 overflow-hidden flex items-center justify-center">
                     <svg className="w-full h-full" style={{ background: '#020617' }}>
-                      {/* Original edges */}
                       {edges.filter(e => !e.isHealed).map((edge, idx) => {
                         const u = nodes.find(n => n.id === edge.source);
                         const v = nodes.find(n => n.id === edge.target);
@@ -795,7 +844,6 @@ export default function App() {
                         );
                       })}
 
-                      {/* Step specific edge indicators */}
                       {mstStep >= 1 && edges.filter(e => e.isHealed).map((edge, idx) => {
                         const u = nodes.find(n => n.id === edge.source);
                         const v = nodes.find(n => n.id === edge.target);
@@ -830,7 +878,6 @@ export default function App() {
                         );
                       })}
 
-                      {/* Nodes */}
                       {nodes.map((node) => (
                         <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
                           <circle r={6} fill="#2563EB" />
@@ -839,7 +886,6 @@ export default function App() {
                       ))}
                     </svg>
 
-                    {/* Step Legend indicator */}
                     <div className="absolute bottom-3 left-3 bg-slate-900/90 border border-white/5 rounded-lg p-2 flex flex-col gap-1 text-[9px]">
                       <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#2563EB]"></span> Core Road Fragments</div>
                       {mstStep === 1 && <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#eab308]"></span> Candidate Gaps Scored</div>}
@@ -852,32 +898,29 @@ export default function App() {
             </div>
           )}
 
-          {/* PAGE 03: STRESS SIMULATION (SLIDE 5 CONCEPTS) */}
+          {/* PAGE 03: STRESS PLAYGROUND (WITH ENHANCED MULTI-COLUMN DATA PANELS) */}
           {activeTab === 'simulation' && (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* GIS PATH SIMULATION PLAYGROUND */}
-              <div className="col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <div className="lg:col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-3 gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                       <MapIcon className="h-4.5 w-4.5 text-[#00E5FF]" /> Criticality Ablation Playground
                     </h2>
                     <p className="text-xs text-white/40">Select node targets to evaluate detour lengths and Resilience Indices ($R$).</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={resetNetwork}
-                      className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-lg text-xs font-bold border border-rose-500/20 cursor-pointer"
-                    >
-                      Clear All Closures
-                    </button>
-                  </div>
+                  <button 
+                    onClick={resetNetwork}
+                    className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-lg text-xs font-bold border border-rose-500/20 cursor-pointer"
+                  >
+                    Clear All Closures
+                  </button>
                 </div>
 
                 <div className="relative h-[340px] bg-slate-950 rounded-xl overflow-hidden border border-white/5">
                   <svg className="w-full h-full" style={{ background: '#020617' }}>
-                    {/* Render connections */}
                     {edges.map((edge, idx) => {
                       const u = nodes.find(n => n.id === edge.source);
                       const v = nodes.find(n => n.id === edge.target);
@@ -890,22 +933,20 @@ export default function App() {
                       const isEdgeDisabled = u.status === 'disabled' || v.status === 'disabled' || (edge.isHealed && !mstEnabled);
                       
                       return (
-                        <g key={idx}>
-                          <line
-                            x1={u.x}
-                            y1={u.y}
-                            x2={v.x}
-                            y2={v.y}
-                            stroke={isEdgeDisabled ? '#1e293b' : isShortest ? '#00E5FF' : edge.isHealed ? '#a855f7' : '#2563EB'}
-                            strokeWidth={isShortest ? 4 : edge.isHealed ? 2.5 : 2}
-                            strokeDasharray={edge.isHealed ? '6,6' : '0'}
-                            opacity={isEdgeDisabled ? 0.2 : 0.8}
-                          />
-                        </g>
+                        <line
+                          key={idx}
+                          x1={u.x}
+                          y1={u.y}
+                          x2={v.x}
+                          y2={v.y}
+                          stroke={isEdgeDisabled ? '#1e293b' : isShortest ? '#00E5FF' : edge.isHealed ? '#a855f7' : '#2563EB'}
+                          strokeWidth={isShortest ? 4 : edge.isHealed ? 2.5 : 2}
+                          strokeDasharray={edge.isHealed ? '6,6' : '0'}
+                          opacity={isEdgeDisabled ? 0.2 : 0.8}
+                        />
                       );
                     })}
 
-                    {/* Nodes */}
                     {nodes.map((node) => {
                       const isNodeOnShortestPath = shortestPath.includes(node.id);
                       return (
@@ -940,62 +981,91 @@ export default function App() {
                 </div>
               </div>
 
-              {/* DYNAMIC TELEMETRY RESPONSE SIDEBAR */}
-              <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider text-[#00E5FF]">Vulnerability Assessment</h3>
-
-                {selectedNode ? (
-                  <div className="bg-slate-900/60 p-3 rounded-lg border border-white/5 flex flex-col gap-2 flex-grow">
-                    <div className="flex justify-between items-start">
-                      <span className="text-xs font-bold text-[#00E5FF]">{selectedNode.name}</span>
-                      <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-extrabold ${
-                        selectedNode.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                      }`}>
-                        {selectedNode.status}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-white/50">{selectedNode.info}</p>
-                    
-                    <div className="text-[11px] mt-2 space-y-1.5 font-mono">
-                      <div className="flex justify-between">
-                        <span className="text-white/40">Baseline Centrality:</span>
-                        <span className="text-white font-bold">{selectedNode.baselineCentrality}</span>
+              {/* DYNAMIC METRICS, LIVE LOGS, TIMELINE & MINI STATS (NO EMPTY SPACES) */}
+              <div className="flex flex-col gap-4">
+                
+                {/* 1. NODE ABLATION ACTION CONTROL */}
+                <div className="glass-panel p-4 rounded-xl flex flex-col gap-2">
+                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider">Vulnerability Assessment</h3>
+                  {selectedNode ? (
+                    <div className="bg-slate-900/60 p-3 rounded-lg border border-white/5 flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-white">{selectedNode.name}</span>
+                        <span className={`text-[8px] uppercase px-1.5 py-0.5 rounded font-extrabold ${
+                          selectedNode.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                          {selectedNode.status}
+                        </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-white/40">Shortest Route length:</span>
-                        <span className="text-white font-bold">{activePathLength > 0 ? `${activePathLength}m` : 'INF'}</span>
+                      <div className="text-[10px] text-white/50 flex justify-between">
+                        <span>Baseline Centrality:</span>
+                        <span className="font-bold text-white">{selectedNode.baselineCentrality}</span>
                       </div>
+                      <button
+                        onClick={() => toggleNodeStatus(selectedNode.id)}
+                        className={`w-full mt-2 py-1.5 text-[10px] font-bold rounded transition-all border cursor-pointer ${
+                          selectedNode.status === 'active' 
+                            ? 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border-rose-500/30' 
+                            : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30'
+                        }`}
+                      >
+                        {selectedNode.status === 'active' ? 'Simulate Closure' : 'Restore Operations'}
+                      </button>
                     </div>
+                  ) : (
+                    <div className="text-center p-3 border border-dashed border-white/5 rounded text-white/30 text-[10px]">
+                      Select any node on the map to interact.
+                    </div>
+                  )}
+                </div>
 
-                    <button
-                      onClick={() => toggleNodeStatus(selectedNode.id)}
-                      className={`w-full mt-auto py-2 text-xs font-bold rounded-lg transition-all border cursor-pointer ${
-                        selectedNode.status === 'active' 
-                          ? 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border-rose-500/30' 
-                          : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30'
-                      }`}
-                    >
-                      {selectedNode.status === 'active' ? 'Disable Node (Simulate Blockage)' : 'Restore Node Operations'}
-                    </button>
+                {/* 2. ALGORITHM EXPLANATION CARD */}
+                <div className="glass-panel p-4 rounded-xl flex flex-col gap-1.5">
+                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider flex items-center gap-1">
+                    <Info className="h-3.5 w-3.5" /> Mathematical Core
+                  </h3>
+                  <div className="bg-slate-900/40 p-2.5 rounded border border-white/5 font-mono text-[9px] text-white/70">
+                    <div className="font-bold text-white mb-1">Betweenness Centrality:</div>
+                    <div>{"C_B(v) = ∑ [ σ_st(v) / σ_st ]"}</div>
+                    <div className="text-[8px] text-white/40 mt-1">Measures the ratio of shortest paths traversing node v. High C_B denotes a single point of failure bottleneck.</div>
                   </div>
-                ) : (
-                  <div className="flex-grow flex flex-col items-center justify-center text-center p-4 border border-dashed border-white/5 rounded-lg text-white/30 text-xs">
-                    <Info className="h-6 w-6 mb-2" />
-                    Select a node to run simulations.
+                </div>
+
+                {/* 3. SCROLLING LIVE LOGS */}
+                <div className="glass-panel p-4 rounded-xl flex flex-col gap-1.5 flex-grow min-h-[140px]">
+                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> Simulation Logs
+                  </h3>
+                  <div className="overflow-y-auto max-h-[120px] flex flex-col gap-1.5 pr-1">
+                    {ablationLog.map((log, idx) => (
+                      <div key={idx} className="bg-slate-900/50 p-2 rounded border border-white/5 text-[9px] font-mono">
+                        <div className="flex justify-between font-bold text-[#00E5FF]">
+                          <span>{log.event}</span>
+                          <span className="text-white/30">{log.time}</span>
+                        </div>
+                        <div className="text-white/50 mt-0.5">{log.impact}</div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+
               </div>
             </div>
           )}
 
-          {/* PAGE 04: MODEL EVALUATION */}
-          {activeTab === 'analytics' && (
-            <div className="grid grid-cols-2 gap-6">
+          {/* PAGE 04: EVALUATION & REPORTS */}
+          {activeTab === 'reports' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* IoU comparisons */}
-              <div className="glass-panel p-5 rounded-xl flex flex-col gap-4">
-                <h2 className="text-xs font-bold text-white uppercase tracking-wider text-[#00E5FF]">Model Learning Performance (Dice IoU vs Epoch)</h2>
-                <div className="h-[260px] w-full">
+              {/* EVALUATION CHARTS */}
+              <div className="lg:col-span-2 glass-panel p-5 rounded-xl flex flex-col gap-4">
+                <div className="border-b border-white/5 pb-3">
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <BarChart3 className="h-4.5 w-4.5 text-[#00E5FF]" /> Performance Metrics
+                  </h2>
+                </div>
+                
+                <div className="h-[250px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={learningCurve}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -1003,42 +1073,129 @@ export default function App() {
                       <YAxis stroke="rgba(255,255,255,0.3)" />
                       <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }} />
                       <Legend />
-                      <Line type="monotone" dataKey="Custom_OcclusionRecall" stroke="#00E5FF" strokeWidth={2.5} name="Custom Loss (Dice + Occlusion-Recall)" />
+                      <Line type="monotone" dataKey="Custom_OcclusionRecall" stroke="#00E5FF" strokeWidth={2.5} name="Custom Loss" />
                       <Line type="monotone" dataKey="Standard_BCE" stroke="#2563EB" strokeWidth={1.5} name="Standard BCE Loss" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* R degradation info */}
-              <div className="glass-panel p-5 rounded-xl flex flex-col justify-between">
-                <div>
-                  <h2 className="text-xs font-bold text-white uppercase tracking-wider mb-3 text-[#00E5FF]">Mission Outcome Metrics (Slide 3 & 4)</h2>
-                  
-                  <div className="grid grid-cols-2 gap-4 mt-2">
-                    <div className="bg-slate-900/60 p-3 rounded-lg border border-white/5">
-                      <div className="text-[10px] text-white/40 uppercase font-bold">Standard BCE IoU</div>
-                      <div className="text-xl font-extrabold text-rose-500">74.2%</div>
-                      <p className="text-[9px] text-white/30 mt-1">Leaves gaps under canopies.</p>
+              {/* STATS, DATASET SPECS & TIMELINE */}
+              <div className="flex flex-col gap-4">
+                
+                <div className="glass-panel p-4 rounded-xl flex flex-col gap-2">
+                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider">Satellite Datasets</h3>
+                  <div className="space-y-2 text-[10px]">
+                    <div className="bg-slate-900/60 p-2 rounded border border-white/5 flex justify-between">
+                      <span className="font-bold text-white">Sentinel-2</span>
+                      <span className="text-white/40">10m Spatial Res</span>
                     </div>
-
-                    <div className="bg-slate-900/60 p-3 rounded-lg border border-[#00E5FF]/20">
-                      <div className="text-[10px] text-[#00E5FF] uppercase font-bold">Custom Occlusion IoU</div>
-                      <div className="text-xl font-extrabold text-emerald-400">92.4%</div>
-                      <p className="text-[9px] text-[#00E5FF]/50 mt-1">Restores continuity with spatial attention.</p>
+                    <div className="bg-slate-900/60 p-2 rounded border border-white/5 flex justify-between">
+                      <span className="font-bold text-white">Resourcesat LISS-IV</span>
+                      <span className="text-white/40">5.8m Spatial Res</span>
+                    </div>
+                    <div className="bg-slate-900/60 p-2 rounded border border-white/5 flex justify-between">
+                      <span className="font-bold text-white">Cartosat-3</span>
+                      <span className="text-emerald-400 font-bold">0.28m High Res</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-slate-900/30 p-3 rounded-lg border border-white/5 text-[11px] text-white/50 leading-relaxed font-mono">
-                  <span className="text-[#00E5FF] font-bold">Summary:</span> Transitioning from legacy pixel segmentation to our attention-guided topological graph healing improves routable network extraction accuracy from <span className="text-rose-400 font-bold">53% to 94.1%</span> across highly occluded Indian metropolis environments.
+                <div className="glass-panel p-4 rounded-xl flex flex-col gap-2">
+                  <h3 className="text-xs font-bold text-[#00E5FF] uppercase tracking-wider">Evaluation Timeline</h3>
+                  <div className="relative border-l border-white/10 pl-4 space-y-3 font-mono text-[9px] text-white/60">
+                    <div className="relative">
+                      <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-[#00E5FF]"></span>
+                      <div className="font-bold text-white">Epoch 10</div>
+                      <div>Initial pretraining on SpaceNet completed.</div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-[#00E5FF]"></span>
+                      <div className="font-bold text-white">Epoch 30</div>
+                      <div>Attention constraints active; IoU reaches 87.2%.</div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-emerald-400"></span>
+                      <div className="font-bold text-emerald-400">Epoch 50</div>
+                      <div>Convergence reached at 92.4% validation IoU.</div>
+                    </div>
+                  </div>
                 </div>
+
               </div>
+
             </div>
           )}
 
         </main>
       </div>
+
+      {/* FOOTER */}
+      <footer className="glass-panel border-t border-white/5 py-3.5 px-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-white/40 gap-2">
+        <div>
+          Developed for <span className="text-[#00E5FF] font-bold">ISRO NNRMS Hackathon 2026</span>
+        </div>
+        <div>
+          Made by <span className="text-[#00E5FF] font-bold">Team SpaceHead</span>
+        </div>
+        <div className="font-mono">
+          React • Tailwind • Vite
+        </div>
+      </footer>
+
+      {/* ABOUT PROJECT MODAL DIALOG */}
+      {showAbout && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
+          <div className="max-w-2xl w-full glass-panel-heavy p-6 rounded-2xl border border-white/15 flex flex-col gap-4 relative animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowAbout(false)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-white/15 pb-2">
+              <Info className="h-5 w-5 text-[#00E5FF]" /> Project Brief & Architecture
+            </h2>
+
+            <div className="space-y-4 text-xs overflow-y-auto max-h-[380px] pr-2">
+              <div>
+                <h3 className="font-bold text-[#00E5FF] uppercase tracking-wider text-[10px] mb-1">🔴 The Problem Statement</h3>
+                <p className="text-white/70 leading-relaxed">
+                  Traditional satellite mapping fails in dynamic Indian metropolises (e.g. Bengaluru) due to building shadows, canopy occlusions, and cloud covers. Fragmented pixel outputs are unusable for emergency routing or urban planning.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-[#00E5FF] uppercase tracking-wider text-[10px] mb-1">🏗️ Technical Pipeline</h3>
+                <p className="text-white/70 leading-relaxed">
+                  First, a context-aware U-Net Transformer architecture infers road continuities. Second, centerlines are thinned and grouped via Disjoint Sets. Third, a Minimum Spanning Tree (MST) bridges topology gaps using exit-angle constraints.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-[#00E5FF] uppercase tracking-wider text-[10px] mb-1">📊 Satellite Datasets</h3>
+                <p className="text-white/70 leading-relaxed">
+                  Sentinel-2 (10m openly available), Resourcesat LISS-IV (5.8m multi-spectral), and Cartosat-3 high-resolution pan-sharpened bands.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-[#00E5FF] uppercase tracking-wider text-[10px] mb-1">🛠️ Core Technology Stack</h3>
+                <p className="text-white/70 leading-relaxed font-mono">
+                  React 19 • TailwindCSS v4 • Vite • Framer Motion • Recharts • NetworkX
+                </p>
+              </div>
+
+              <div className="border-t border-white/5 pt-3 flex justify-between text-white/50 text-[10px]">
+                <span>MEMBER: Daksh Baraliya</span>
+                <span>TEAM: SpaceHead</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
